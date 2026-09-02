@@ -1,3 +1,5 @@
+using EcommerceApi.Application.Authentication;
+using EcommerceApi.Infrastructure.Authentication;
 using EcommerceApi.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +35,15 @@ public static class InfrastructureDependencyInjection
         }
 
         services.AddDbContext<OrderDbContext>(options => options.UseSqlite(sqliteConnectionString.ToString()));
+        return services;
+    }
+
+    public static IServiceCollection AddJwtAccessTokenGeneration(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddSingleton<IAccessTokenGenerator>(
+            new JwtAccessTokenGenerator(JwtTokenOptions.FromConfiguration(configuration)));
         return services;
     }
 }

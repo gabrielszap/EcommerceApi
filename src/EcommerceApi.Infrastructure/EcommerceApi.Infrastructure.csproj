@@ -9,8 +9,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\EcommerceApi.Application\EcommerceApi.Application.csproj" />
     <ProjectReference Include="..\EcommerceApi.Domain\EcommerceApi.Domain.csproj" />
   </ItemGroup>
 

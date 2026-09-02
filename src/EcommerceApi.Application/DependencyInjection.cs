@@ -1,4 +1,5 @@
 using EcommerceApi.Application.Common.Behaviors;
+using EcommerceApi.Application.Authentication;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,7 @@ public static class ApplicationDependencyInjection
             configuration.RegisterServicesFromAssemblyContaining<AssemblyMarker>());
         services.AddValidatorsFromAssemblyContaining<AssemblyMarker>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddSingleton<ITestCredentialsValidator, InMemoryTestCredentialsValidator>();
 
         return services;
     }

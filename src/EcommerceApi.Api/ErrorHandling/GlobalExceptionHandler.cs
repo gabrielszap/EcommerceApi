@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using EcommerceApi.Domain.Common;
 using FluentValidation;
 
 namespace EcommerceApi.Api.ErrorHandling;
@@ -29,6 +30,24 @@ public sealed class GlobalExceptionHandler(
                 {
                     Status = StatusCodes.Status400BadRequest,
                     Title = "One or more validation errors occurred.",
+                    Type = "https://httpstatuses.com/400",
+                    Instance = httpContext.Request.Path
+                }
+            });
+            return true;
+        }
+
+        if (exception is DomainRuleViolationException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await problemDetailsService.WriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = httpContext,
+                ProblemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "The order violates a business rule.",
+                    Detail = exception.Message,
                     Type = "https://httpstatuses.com/400",
                     Instance = httpContext.Request.Path
                 }

@@ -1,4 +1,5 @@
 using EcommerceApi.Application.Authentication;
+using EcommerceApi.Application.Orders.Persistence;
 using EcommerceApi.Infrastructure.Authentication;
 using EcommerceApi.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
@@ -35,6 +36,8 @@ public static class InfrastructureDependencyInjection
         }
 
         services.AddDbContext<OrderDbContext>(options => options.UseSqlite(sqliteConnectionString.ToString()));
+        services.AddScoped<IOrderWriter, EfCoreOrderWriter>();
+        services.AddScoped<IOrderReader, EfCoreOrderReader>();
         return services;
     }
 

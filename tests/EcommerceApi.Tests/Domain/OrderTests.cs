@@ -41,6 +41,16 @@ public sealed class OrderTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateItem_WithMissingProductName_ThrowsDomainRuleViolation(string? productName)
+    {
+        Assert.Throws<DomainRuleViolationException>(() =>
+            OrderItem.Create(productName!, 1, 100m));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     public void CreateItem_WithNonPositiveQuantity_ThrowsDomainRuleViolation(int quantity)

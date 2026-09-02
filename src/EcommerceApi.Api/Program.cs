@@ -1,5 +1,6 @@
 using EcommerceApi.Api.Authentication;
 using EcommerceApi.Api.ErrorHandling;
+using EcommerceApi.Api.Orders;
 using EcommerceApi.Application;
 using EcommerceApi.Infrastructure;
 using EcommerceApi.Infrastructure.Persistence;
@@ -38,6 +39,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
 app.MapAuthenticationEndpoints();
+app.MapOrderEndpoints();
 
 app.Run();
 

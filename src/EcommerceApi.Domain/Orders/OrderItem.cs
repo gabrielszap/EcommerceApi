@@ -29,6 +29,11 @@ public sealed class OrderItem
 
     public static OrderItem Create(string productName, int quantity, decimal unitPrice)
     {
+        if (string.IsNullOrWhiteSpace(productName))
+        {
+            throw new DomainRuleViolationException("Order item product name is required.");
+        }
+
         if (quantity <= 0)
         {
             throw new DomainRuleViolationException("Order item quantity must be greater than zero.");

@@ -1,5 +1,6 @@
 using EcommerceApi.Infrastructure;
 using EcommerceApi.Infrastructure.Persistence;
+using EcommerceApi.Domain.Orders;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -119,17 +120,103 @@ public sealed class OrderDbContextTests
         var quantityItemId = Guid.NewGuid();
         await Assert.ThrowsAsync<SqliteException>(() =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({quantityItemId}, {orderId}, {productName}, 0, 10.00);") );
+                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({quantityItemId}, {orderId}, {productName}, 0, 10.00);"));
 
         var priceItemId = Guid.NewGuid();
         await Assert.ThrowsAsync<SqliteException>(() =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({priceItemId}, {orderId}, {productName}, 1, -0.01);") );
+                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({priceItemId}, {orderId}, {productName}, 1, -0.01);"));
 
         var zeroPriceItemId = Guid.NewGuid();
         await Assert.ThrowsAsync<SqliteException>(() =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({zeroPriceItemId}, {orderId}, {productName}, 1, 0.0);") );
+                $"INSERT INTO OrderItems (Id, OrderId, ProductName, Quantity, UnitPrice) VALUES ({zeroPriceItemId}, {orderId}, {productName}, 1, 0.0);"));
+    }
+
+    [Fact]
+    public async Task EfCoreOrderWriter_PersistsOrderAndItemsRelationshipAtomically()
+    {
+        await using var database = TemporarySqliteDatabase.Create();
+        await using (var setupContext = database.CreateContext())
+        {
+            await setupContext.Database.MigrateAsync();
+        }
+
+        var customerId = Guid.NewGuid();
+        var order = Order.Create(
+            customerId,
+            [OrderItem.Create("Keyboard", 2, 150.00m), OrderItem.Create("Mouse", 1, 75.50m)],
+            new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc));
+
+        await using (var writeContext = database.CreateContext())
+        {
+            var writer = new EfCoreOrderWriter(writeContext);
+            await writer.AddAsync(order, CancellationToken.None);
+        }
+
+        await using var readContext = database.CreateContext();
+        var persisted = await readContext.Orders
+            .Include("_items")
+            .SingleAsync(savedOrder => savedOrder.Id == order.Id);
+
+        Assert.Equal(customerId, persisted.CustomerId);
+        Assert.Equal(OrderStatus.Pending, persisted.Status);
+        Assert.Equal(2, persisted.Items.Count);
+        Assert.All(persisted.Items, item => Assert.Equal(order.Id, item.OrderId));
+        Assert.Equal(375.50m, persisted.TotalAmount);
+    }
+
+    [Fact]
+    public async Task EfCoreOrderReader_ReturnsDeterministicPagesAndDetailsWithDomainCalculatedTotals()
+    {
+        await using var database = TemporarySqliteDatabase.Create();
+        await using (var setupContext = database.CreateContext())
+        {
+            await setupContext.Database.MigrateAsync();
+        }
+
+        var oldest = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Notebook", 1, 100.00m)],
+            new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc));
+        var newestA = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Keyboard", 2, 150.00m)],
+            new DateTime(2026, 9, 2, 10, 0, 0, DateTimeKind.Utc));
+        var newestB = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Mouse", 3, 50.00m), OrderItem.Create("Pad", 1, 25.00m)],
+            new DateTime(2026, 9, 2, 10, 0, 0, DateTimeKind.Utc));
+
+        await using (var writeContext = database.CreateContext())
+        {
+            var writer = new EfCoreOrderWriter(writeContext);
+            await writer.AddAsync(oldest, CancellationToken.None);
+            await writer.AddAsync(newestA, CancellationToken.None);
+            await writer.AddAsync(newestB, CancellationToken.None);
+        }
+
+        await using var readContext = database.CreateContext();
+        var reader = new EfCoreOrderReader(readContext);
+
+        var firstPage = await reader.GetPageAsync(1, 2, CancellationToken.None);
+        var secondPage = await reader.GetPageAsync(2, 2, CancellationToken.None);
+        var expectedOrderIds = new[] { newestA, newestB, oldest }
+            .OrderByDescending(order => order.CreatedAt)
+            .ThenBy(order => order.Id)
+            .Select(order => order.Id)
+            .ToArray();
+        var detail = await reader.GetByIdAsync(newestB.Id, CancellationToken.None);
+
+        Assert.Equal(3, firstPage.TotalCount);
+        Assert.Equal(2, firstPage.Items.Count);
+        Assert.Equal(expectedOrderIds.Take(2), firstPage.Items.Select(order => order.Id));
+        Assert.Equal(expectedOrderIds.Skip(2), secondPage.Items.Select(order => order.Id));
+        Assert.Equal(3, secondPage.TotalCount);
+        Assert.NotNull(detail);
+        Assert.Equal(newestB.Id, detail.Id);
+        Assert.Equal(2, detail.Items.Count);
+        Assert.Equal(175.00m, detail.TotalAmount);
     }
 
     private sealed class TemporarySqliteDatabase : IAsyncDisposable

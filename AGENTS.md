@@ -389,6 +389,18 @@ When the classification is materially ambiguous, ask the user before creating an
 - The expected integration flow is an activity branch Pull Request into `develop`, followed by a separate `develop` Pull Request into `main` for production promotion.
 - If an authorized rebase or history rewrite requires a remote update, validate all gates first and use `--force-with-lease`, never an unconditional force push.
 
+#### Direct integration of a spec branch
+
+When the user explicitly authorizes direct integration of a spec branch into `develop`, use this sequence:
+
+1. On the spec branch, validate the changes, create the focused Conventional Commit, and push the spec branch to `origin`.
+2. Check out `develop`.
+3. Merge the spec branch into `develop`.
+4. Commit the resulting integration state on `develop` when the merge produces changes that require a separate commit. If the merge is a fast-forward, do not create an empty commit; the spec commit is already the resulting `develop` commit.
+5. Push `develop` to `origin`.
+
+This direct flow does not authorize Pull Request creation, branch deletion, or any other remote operation unless separately requested.
+
 ### Git completion report
 
 At the end of the activity, report:

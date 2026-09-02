@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__Orders: Data Source=/app/data/ecommerce.db
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ecommerceapi-data:/app/data
+
+volumes:
+  ecommerceapi-data:

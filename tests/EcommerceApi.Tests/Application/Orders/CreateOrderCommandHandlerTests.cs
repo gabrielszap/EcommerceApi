@@ -68,11 +68,23 @@ public sealed class CreateOrderCommandHandlerTests
             Orders.Add(order);
             return Task.CompletedTask;
         }
+
+        public Task<Order?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class ThrowingOrderWriter : IOrderWriter
     {
         public Task AddAsync(Order order, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Persistence failed.");
+
+        public Task<Order?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

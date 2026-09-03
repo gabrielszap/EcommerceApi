@@ -48,4 +48,24 @@ public sealed class Order
 
         return new Order(Guid.NewGuid(), customerId, createdAt, materializedItems);
     }
+
+    public void Confirm()
+    {
+        if (Status != OrderStatus.Pending)
+        {
+            throw new DomainRuleViolationException("Only pending orders can be confirmed.");
+        }
+
+        Status = OrderStatus.Confirmed;
+    }
+
+    public void Cancel()
+    {
+        if (Status != OrderStatus.Pending)
+        {
+            throw new DomainRuleViolationException("Only pending orders can be cancelled.");
+        }
+
+        Status = OrderStatus.Cancelled;
+    }
 }

@@ -7,6 +7,7 @@ using EcommerceApi.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EcommerceApi.Tests.Api;
@@ -149,15 +150,120 @@ public sealed class QueryOrdersEndpointTests
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
+    [Fact]
+    public async Task CancelOrder_WithPendingOrder_ReturnsOkAndPersistsCancelledStatus()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+        var orderId = await CreateOrderAsync(client, "Keyboard", 2, 150.00m);
+
+        var response = await client.PatchAsync($"/api/orders/{orderId}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var root = document.RootElement;
+        Assert.Equal(orderId, root.GetProperty("id").GetGuid());
+        Assert.Equal("Cancelled", root.GetProperty("status").GetString());
+        Assert.Equal(300.00m, root.GetProperty("totalAmount").GetDecimal());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var persisted = await context.Orders.SingleAsync(order => order.Id == orderId);
+        Assert.Equal(OrderStatus.Cancelled, persisted.Status);
+    }
+
+    [Fact]
+    public async Task CancelOrder_WithAlreadyCancelledOrder_ReturnsConflictAndPreservesState()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+        var orderId = await CreateOrderAsync(client, "Keyboard", 1, 100.00m);
+        var firstResponse = await client.PatchAsync($"/api/orders/{orderId}/cancel", null);
+        firstResponse.EnsureSuccessStatusCode();
+
+        var response = await client.PatchAsync($"/api/orders/{orderId}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var persisted = await context.Orders.SingleAsync(order => order.Id == orderId);
+        Assert.Equal(OrderStatus.Cancelled, persisted.Status);
+    }
+
+    [Fact]
+    public async Task CancelOrder_WithConfirmedOrder_ReturnsConflictAndPreservesState()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+        var orderId = await SeedConfirmedOrderAsync(factory);
+
+        var response = await client.PatchAsync($"/api/orders/{orderId}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var persisted = await context.Orders.SingleAsync(order => order.Id == orderId);
+        Assert.Equal(OrderStatus.Confirmed, persisted.Status);
+    }
+
+    [Fact]
+    public async Task CancelOrder_WithMissingOrder_ReturnsNotFoundProblem()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+
+        var response = await client.PatchAsync($"/api/orders/{Guid.NewGuid()}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task CancelOrder_WithMalformedGuid_ReturnsBadRequestProblem()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+
+        var response = await client.PatchAsync("/api/orders/not-a-guid/cancel", null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task CancelOrder_WithEmptyGuid_ReturnsBadRequestProblem()
+    {
+        using var factory = new QueryOrdersApiFactory();
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await LoginAsync(client));
+
+        var response = await client.PatchAsync($"/api/orders/{Guid.Empty}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
     [Theory]
     [InlineData("/api/orders")]
     [InlineData("/api/orders/11111111-1111-1111-1111-111111111111")]
+    [InlineData("/api/orders/11111111-1111-1111-1111-111111111111/cancel")]
     public async Task GetOrderRoutes_WithoutBearerToken_ReturnUnauthorized(string route)
     {
         using var factory = new QueryOrdersApiFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync(route);
+        var response = route.EndsWith("/cancel", StringComparison.Ordinal)
+            ? await client.PatchAsync(route, null)
+            : await client.GetAsync(route);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -174,12 +280,15 @@ public sealed class QueryOrdersEndpointTests
         var paths = document.RootElement.GetProperty("paths");
         var listOperation = paths.GetProperty("/api/orders").GetProperty("get");
         var detailOperation = paths.GetProperty("/api/orders/{id}").GetProperty("get");
+        var cancelOperation = paths.GetProperty("/api/orders/{id}/cancel").GetProperty("patch");
 
         AssertOperationRequiresBearer(listOperation);
         AssertOperationRequiresBearer(detailOperation);
+        AssertOperationRequiresBearer(cancelOperation);
         AssertParameterSchema(listOperation, "page", "integer", minimum: 1);
         AssertParameterSchema(listOperation, "pageSize", "integer", minimum: 1, maximum: 100);
         AssertParameterSchema(detailOperation, "id", "string", format: "uuid");
+        AssertParameterSchema(cancelOperation, "id", "string", format: "uuid");
     }
 
     private static async Task<string> LoginAsync(HttpClient client)
@@ -226,6 +335,20 @@ public sealed class QueryOrdersEndpointTests
             Guid.NewGuid(),
             [OrderItem.Create(productName, quantity, unitPrice)],
             createdAt);
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+        return order.Id;
+    }
+
+    private static async Task<Guid> SeedConfirmedOrderAsync(QueryOrdersApiFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+        var order = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Keyboard", 1, 100.00m)],
+            new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc));
+        order.Confirm();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
         return order.Id;

@@ -1,5 +1,6 @@
 using EcommerceApi.Infrastructure;
 using EcommerceApi.Infrastructure.Persistence;
+using EcommerceApi.Application.Orders.Persistence;
 using EcommerceApi.Domain.Orders;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -164,6 +165,82 @@ public sealed class OrderDbContextTests
         Assert.Equal(2, persisted.Items.Count);
         Assert.All(persisted.Items, item => Assert.Equal(order.Id, item.OrderId));
         Assert.Equal(375.50m, persisted.TotalAmount);
+    }
+
+    [Fact]
+    public async Task EfCoreOrderWriter_CancelledStatusPersistsAndSurvivesNewContext()
+    {
+        await using var database = TemporarySqliteDatabase.Create();
+        await using (var setupContext = database.CreateContext())
+        {
+            await setupContext.Database.MigrateAsync();
+        }
+
+        var order = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Keyboard", 2, 150.00m)],
+            new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc));
+
+        await using (var seedContext = database.CreateContext())
+        {
+            var writer = new EfCoreOrderWriter(seedContext);
+            await writer.AddAsync(order, CancellationToken.None);
+        }
+
+        await using (var cancelContext = database.CreateContext())
+        {
+            var writer = new EfCoreOrderWriter(cancelContext);
+            var persisted = await writer.GetByIdForUpdateAsync(order.Id, CancellationToken.None);
+
+            Assert.NotNull(persisted);
+            persisted.Cancel();
+            await writer.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using var readContext = database.CreateContext();
+        var cancelled = await readContext.Orders
+            .Include("_items")
+            .SingleAsync(savedOrder => savedOrder.Id == order.Id);
+
+        Assert.Equal(OrderStatus.Cancelled, cancelled.Status);
+        Assert.Equal(300.00m, cancelled.TotalAmount);
+    }
+
+    [Fact]
+    public async Task EfCoreOrderWriter_WhenStatusChangedByAnotherContext_ThrowsConcurrencyException()
+    {
+        await using var database = TemporarySqliteDatabase.Create();
+        await using (var setupContext = database.CreateContext())
+        {
+            await setupContext.Database.MigrateAsync();
+        }
+
+        var order = Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Keyboard", 1, 100.00m)],
+            new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc));
+
+        await using (var seedContext = database.CreateContext())
+        {
+            var writer = new EfCoreOrderWriter(seedContext);
+            await writer.AddAsync(order, CancellationToken.None);
+        }
+
+        await using var firstContext = database.CreateContext();
+        await using var secondContext = database.CreateContext();
+        var firstWriter = new EfCoreOrderWriter(firstContext);
+        var secondWriter = new EfCoreOrderWriter(secondContext);
+        var firstOrder = await firstWriter.GetByIdForUpdateAsync(order.Id, CancellationToken.None);
+        var secondOrder = await secondWriter.GetByIdForUpdateAsync(order.Id, CancellationToken.None);
+
+        Assert.NotNull(firstOrder);
+        Assert.NotNull(secondOrder);
+        firstOrder.Cancel();
+        secondOrder.Cancel();
+        await firstWriter.SaveChangesAsync(CancellationToken.None);
+
+        await Assert.ThrowsAsync<OrderPersistenceConcurrencyException>(() =>
+            secondWriter.SaveChangesAsync(CancellationToken.None));
     }
 
     [Fact]

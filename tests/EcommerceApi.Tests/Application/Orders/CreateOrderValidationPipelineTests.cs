@@ -1,4 +1,5 @@
 using EcommerceApi.Application;
+using EcommerceApi.Application.Orders.CancelOrder;
 using EcommerceApi.Application.Orders.CreateOrder;
 using EcommerceApi.Application.Orders.Persistence;
 using EcommerceApi.Domain.Orders;
@@ -33,9 +34,31 @@ public sealed class CreateOrderValidationPipelineTests
         Assert.Contains(exception.Errors, error => error.PropertyName == "Items[0].UnitPrice");
     }
 
+    [Fact]
+    public async Task Send_WithEmptyCancelOrderId_ThrowsValidationExceptionBeforeTheHandler()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApplication();
+        services.AddSingleton<IOrderWriter, FailingOrderWriter>();
+        await using var provider = services.BuildServiceProvider();
+        var sender = provider.GetRequiredService<ISender>();
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            sender.Send(new CancelOrderCommand(Guid.Empty), CancellationToken.None));
+
+        Assert.Contains(exception.Errors, error => error.PropertyName == "Id");
+    }
+
     private sealed class FailingOrderWriter : IOrderWriter
     {
         public Task AddAsync(Order order, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The handler should not run for invalid input.");
+
+        public Task<Order?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The handler should not run for invalid input.");
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The handler should not run for invalid input.");
     }
 }

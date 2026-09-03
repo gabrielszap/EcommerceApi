@@ -30,6 +30,7 @@ namespace EcommerceApi.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

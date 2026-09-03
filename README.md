@@ -1,6 +1,6 @@
 # EcommerceApi
 
-Order Management practical-test API. This repository includes the runnable foundation, FEATURE-002 authentication, FEATURE-003 order creation, and FEATURE-004 order queries. Cancellation, confirmation, payment, catalog, stock, customer, discount, and idempotency flows are intentionally deferred to later activities or excluded by the feature scope.
+Order Management practical-test API. This repository includes the runnable foundation, FEATURE-002 authentication, FEATURE-003 order creation, FEATURE-004 order queries, and FEATURE-005 order cancellation. Confirmation endpoints, payment, catalog, stock, customer, discount, and idempotency flows are intentionally deferred to later activities or excluded by the feature scope.
 
 ## Prerequisites
 
@@ -13,8 +13,8 @@ Set `Jwt__SigningKey` to a development-only value of at least 32 UTF-8 bytes. It
 
 The solution uses Clean Architecture with four production projects:
 
-- `EcommerceApi.Domain`: `Order` aggregate, `OrderItem`, status, invariants, and `TotalAmount` calculation.
-- `EcommerceApi.Application`: MediatR registration, the FluentValidation pipeline behavior, fixed-credential login, create-order command/handler, query handlers, and application-owned order persistence ports.
+- `EcommerceApi.Domain`: `Order` aggregate, `OrderItem`, status, invariants, cancellation transition, and `TotalAmount` calculation.
+- `EcommerceApi.Application`: MediatR registration, the FluentValidation pipeline behavior, fixed-credential login, create-order command/handler, cancel-order command/handler, query handlers, and application-owned order persistence ports.
 - `EcommerceApi.Infrastructure`: EF Core `OrderDbContext`, SQLite mappings, migrations, JWT generation, the EF order writer, and EF order read queries.
 - `EcommerceApi.Api`: Minimal API host, JWT bearer registration, Problem Details, OpenAPI, dependency injection, startup migration, authentication endpoint, and protected order endpoints.
 
@@ -32,7 +32,7 @@ dotnet restore
 dotnet run --project src/EcommerceApi.Api/EcommerceApi.Api.csproj
 ```
 
-The API listens on the configured ASP.NET Core URL. OpenAPI is available at `/openapi/v1.json`. The currently exposed endpoints are `POST /auth/login`, protected `POST /api/orders`, protected `GET /api/orders`, and protected `GET /api/orders/{id}`.
+The API listens on the configured ASP.NET Core URL. OpenAPI is available at `/openapi/v1.json`. The currently exposed endpoints are `POST /auth/login`, protected `POST /api/orders`, protected `GET /api/orders`, protected `GET /api/orders/{id}`, and protected `PATCH /api/orders/{id}/cancel`.
 
 The local default is `ConnectionStrings:Orders=Data Source=data/ecommerce.db` (and `data/ecommerce.development.db` in Development). The relative SQLite path is resolved from the process content root. The `data` directory is intentionally not committed.
 
@@ -76,7 +76,7 @@ The API host validates JWT issuer, audience, lifetime, signature, and a signing 
 
 For the evaluator only, the fixed in-memory credentials are `dev@martech.com` / `Senha@123`. They are deliberately not persisted in SQLite or modeled as a user account. This is a test fixture and is not a production identity-management design.
 
-Use the received token with routes protected in FEATURE-003 and later:
+Use the received token with protected routes:
 
 ```http
 Authorization: Bearer <accessToken>
@@ -105,7 +105,7 @@ Request:
 
 Successful response: `201 Created`, `Location: /api/orders/{id}`, and a body containing `id`, `customerId`, `status`, `createdAt`, `items`, and Domain-calculated `totalAmount`.
 
-Validation and domain-rule failures return `400 Bad Request` Problem Details. Missing, malformed, invalid, or expired bearer tokens return `401 Unauthorized`. Product catalog lookup, stock validation, price lookup, payment, confirmation, cancellation, customer persistence, discounts, and idempotency keys are not implemented in FEATURE-003.
+Validation and domain-rule failures return `400 Bad Request` Problem Details. Missing, malformed, invalid, or expired bearer tokens return `401 Unauthorized`. Product catalog lookup, stock validation, price lookup, payment, confirmation, customer persistence, discounts, and idempotency keys are not implemented.
 
 ## Query orders
 
@@ -138,6 +138,22 @@ Both read endpoints require `Authorization: Bearer <accessToken>`. They are impl
 
 `GET /api/orders/{id}` returns `200 OK` with `id`, `customerId`, `status`, `createdAt`, `items`, and Domain-calculated `totalAmount`. A malformed GUID or empty GUID returns `400 Bad Request` Problem Details. A well-formed but unknown GUID returns `404 Not Found` Problem Details.
 
+## Cancel order
+
+`PATCH /api/orders/{id}/cancel` requires `Authorization: Bearer <accessToken>` and has no request body. The endpoint parses the route identifier and sends a MediatR command. The handler loads the tracked aggregate through the Application-owned write port, calls `Order.Cancel()`, and persists the changed status with EF Core in the same context. `Status` is configured as an EF Core concurrency token, so a stale cancellation save is translated to the same `409 Conflict` invalid-state outcome instead of reporting a second success.
+
+Successful response: `200 OK` with the order representation, including `status: "Cancelled"` and Domain-calculated `totalAmount`.
+
+| Outcome | Status | Body |
+| --- | --- | --- |
+| Existing pending order | `200 OK` | Cancelled order representation |
+| Malformed GUID | `400 Bad Request` | Problem Details |
+| Unknown valid GUID | `404 Not Found` | Problem Details |
+| Already cancelled or confirmed order | `409 Conflict` | Problem Details |
+| Missing, malformed, invalid, or expired bearer token | `401 Unauthorized` | Problem Details |
+
+No endpoint currently confirms orders. The Domain exposes a confirmation transition only so the aggregate can represent and protect the `Confirmed` state required by the order lifecycle; cancellation still only permits `Pending -> Cancelled`.
+
 ### JWT configuration
 
 | Key | Purpose |
@@ -159,11 +175,11 @@ docker compose config
 docker compose build
 ```
 
-The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation pipeline, login handler, create-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read behavior, and order API behavior are covered in `tests/EcommerceApi.Tests`.
+The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation pipeline, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, and order API behavior are covered in `tests/EcommerceApi.Tests`.
 
 ## Limitations and assumptions
 
-- Order creation and read endpoints are implemented. Cancel/confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
+- Order creation, read, and cancellation endpoints are implemented. Confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
 - There is no persisted user, registration, password reset, refresh token, OAuth flow, or optional observability.
 - Startup migration is intentionally simple for this single-process practical test and is not a multi-instance migration coordinator.
 - SQLite stores `decimal` values using its provider representation; monetary total calculation remains exclusively Domain behavior.

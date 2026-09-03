@@ -1,4 +1,5 @@
 using EcommerceApi.Application.Orders.CreateOrder;
+using EcommerceApi.Application.Orders.CancelOrder;
 using EcommerceApi.Application.Orders.Queries;
 using MediatR;
 using Microsoft.AspNetCore.OpenApi;
@@ -46,8 +47,78 @@ public static class OrderEndpoints
             .RequireOpenApiBearerToken()
             .DescribeOpenApiOrderId();
 
+        group.MapPatch("{id}/cancel", CancelAsync)
+            .WithName("CancelOrder")
+            .WithSummary("Cancels an order.")
+            .WithDescription("Cancels a pending order. Confirmed or already cancelled orders return a conflict.")
+            .Produces<OrderDetailsResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .RequireOpenApiBearerToken()
+            .DescribeOpenApiOrderId();
+
         return endpoints;
     }
+
+    private static async Task<Results<Ok<OrderDetailsResponse>, ProblemHttpResult>> CancelAsync(
+        string id,
+        ISender sender,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(id, out var orderId))
+        {
+            return TypedResults.Problem(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid order identifier.",
+                Detail = "The order identifier must be a GUID.",
+                Type = "https://httpstatuses.com/400",
+                Instance = httpContext.Request.Path
+            });
+        }
+
+        var result = await sender.Send(new CancelOrderCommand(orderId), cancellationToken);
+        return result.Outcome switch
+        {
+            CancelOrderOutcome.Cancelled => TypedResults.Ok(ToResponse(result.Order!)),
+            CancelOrderOutcome.NotFound => TypedResults.Problem(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Order not found.",
+                Detail = $"Order '{orderId}' was not found.",
+                Type = "https://httpstatuses.com/404",
+                Instance = httpContext.Request.Path
+            }),
+            CancelOrderOutcome.InvalidState => TypedResults.Problem(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Order cannot be cancelled.",
+                Detail = result.Detail,
+                Type = "https://httpstatuses.com/409",
+                Instance = httpContext.Request.Path
+            }),
+            _ => throw new InvalidOperationException($"Unsupported cancellation outcome '{result.Outcome}'.")
+        };
+    }
+
+    private static OrderDetailsResponse ToResponse(OrderDetailsResult result) =>
+        new(
+            result.Id,
+            result.CustomerId,
+            result.Status.ToString(),
+            result.CreatedAt,
+            result.Items
+                .Select(item => new OrderItemResponse(
+                    item.Id,
+                    item.OrderId,
+                    item.ProductName,
+                    item.Quantity,
+                    item.UnitPrice))
+                .ToArray(),
+            result.TotalAmount);
 
     private static async Task<Created<CreateOrderResponse>> CreateAsync(
         CreateOrderRequest request,

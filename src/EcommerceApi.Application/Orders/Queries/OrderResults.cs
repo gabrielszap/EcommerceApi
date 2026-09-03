@@ -29,7 +29,24 @@ public sealed record OrderDetailsResult(
     OrderStatus Status,
     DateTime CreatedAt,
     IReadOnlyCollection<OrderItemResult> Items,
-    decimal TotalAmount);
+    decimal TotalAmount)
+{
+    public static OrderDetailsResult From(Order order) =>
+        new(
+            order.Id,
+            order.CustomerId,
+            order.Status,
+            order.CreatedAt,
+            order.Items
+                .Select(item => new OrderItemResult(
+                    item.Id,
+                    item.OrderId,
+                    item.ProductName,
+                    item.Quantity,
+                    item.UnitPrice))
+                .ToArray(),
+            order.TotalAmount);
+}
 
 public sealed record OrderItemResult(
     Guid Id,

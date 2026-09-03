@@ -34,6 +34,36 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void Cancel_WhenPending_ChangesStatusToCancelled()
+    {
+        var order = CreateValidOrder();
+
+        order.Cancel();
+
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyCancelled_ThrowsDomainRuleViolation()
+    {
+        var order = CreateValidOrder();
+        order.Cancel();
+
+        Assert.Throws<DomainRuleViolationException>(order.Cancel);
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+    }
+
+    [Fact]
+    public void Cancel_WhenConfirmed_ThrowsDomainRuleViolation()
+    {
+        var order = CreateValidOrder();
+        order.Confirm();
+
+        Assert.Throws<DomainRuleViolationException>(order.Cancel);
+        Assert.Equal(OrderStatus.Confirmed, order.Status);
+    }
+
+    [Fact]
     public void Create_WithNoItems_ThrowsDomainRuleViolation()
     {
         Assert.Throws<DomainRuleViolationException>(() =>
@@ -67,4 +97,10 @@ public sealed class OrderTests
         Assert.Throws<DomainRuleViolationException>(() =>
             OrderItem.Create("Keyboard", 1, decimal.Parse(unitPrice, System.Globalization.CultureInfo.InvariantCulture)));
     }
+
+    private static Order CreateValidOrder() =>
+        Order.Create(
+            Guid.NewGuid(),
+            [OrderItem.Create("Keyboard", 1, 100m)],
+            new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc));
 }

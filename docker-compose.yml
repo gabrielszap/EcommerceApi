@@ -7,7 +7,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__Orders: Data Source=/app/data/ecommerce.db
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-}
+      Jwt__Issuer: EcommerceApi
+      Jwt__Audience: EcommerceApi
+      Jwt__SigningKey: WubB8iWoRj1rSfka2m5qCaaCcw9DwSBb4Q0mY3bAlo9
     ports:
       - "8080:8080"
     volumes:

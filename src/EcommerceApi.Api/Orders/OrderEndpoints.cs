@@ -1,11 +1,10 @@
 using EcommerceApi.Application.Orders.CreateOrder;
 using EcommerceApi.Application.Orders.CancelOrder;
 using EcommerceApi.Application.Orders.Queries;
+using EcommerceApi.Api.OpenApi;
 using MediatR;
-using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi;
 
 namespace EcommerceApi.Api.Orders;
 
@@ -24,7 +23,54 @@ public static class OrderEndpoints
             .Produces<CreateOrderResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .RequireOpenApiBearerToken();
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .RequireOpenApiBearerToken()
+            .WithJsonRequestExample("""
+                {
+                  "customerId": "11111111-1111-1111-1111-111111111111",
+                  "items": [
+                    {
+                      "productName": "Keyboard",
+                      "quantity": 2,
+                      "unitPrice": 150.00
+                    },
+                    {
+                      "productName": "Mouse",
+                      "quantity": 1,
+                      "unitPrice": 75.50
+                    }
+                  ]
+                }
+                """)
+            .WithJsonResponseExample(StatusCodes.Status201Created, """
+                {
+                  "id": "22222222-2222-2222-2222-222222222222",
+                  "customerId": "11111111-1111-1111-1111-111111111111",
+                  "status": "Pending",
+                  "createdAt": "2026-09-02T12:00:00Z",
+                  "items": [
+                    {
+                      "id": "33333333-3333-3333-3333-333333333333",
+                      "orderId": "22222222-2222-2222-2222-222222222222",
+                      "productName": "Keyboard",
+                      "quantity": 2,
+                      "unitPrice": 150.00
+                    },
+                    {
+                      "id": "44444444-4444-4444-4444-444444444444",
+                      "orderId": "22222222-2222-2222-2222-222222222222",
+                      "productName": "Mouse",
+                      "quantity": 1,
+                      "unitPrice": 75.50
+                    }
+                  ],
+                  "totalAmount": 375.50
+                }
+                """)
+            .WithProblemDetailsExamples(
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status401Unauthorized,
+                StatusCodes.Status500InternalServerError);
 
         group.MapGet("", GetPageAsync)
             .WithName("GetOrders")
@@ -33,8 +79,33 @@ public static class OrderEndpoints
             .Produces<PagedOrdersResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireOpenApiBearerToken()
-            .DescribeOpenApiPagination();
+            .DescribeOpenApiPagination()
+            .WithJsonResponseExample(StatusCodes.Status200OK, """
+                {
+                  "items": [
+                    {
+                      "id": "22222222-2222-2222-2222-222222222222",
+                      "customerId": "11111111-1111-1111-1111-111111111111",
+                      "status": "Pending",
+                      "createdAt": "2026-09-02T12:00:00Z",
+                      "itemCount": 2,
+                      "totalAmount": 375.50
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 10,
+                  "totalCount": 1,
+                  "totalPages": 1,
+                  "hasPreviousPage": false,
+                  "hasNextPage": false
+                }
+                """)
+            .WithProblemDetailsExamples(
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status401Unauthorized,
+                StatusCodes.Status500InternalServerError);
 
         group.MapGet("{id}", GetByIdAsync)
             .WithName("GetOrderById")
@@ -44,8 +115,15 @@ public static class OrderEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireOpenApiBearerToken()
-            .DescribeOpenApiOrderId();
+            .DescribeOpenApiOrderId()
+            .WithJsonResponseExample(StatusCodes.Status200OK, OrderDetailsExampleJson)
+            .WithProblemDetailsExamples(
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status401Unauthorized,
+                StatusCodes.Status404NotFound,
+                StatusCodes.Status500InternalServerError);
 
         group.MapPatch("{id}/cancel", CancelAsync)
             .WithName("CancelOrder")
@@ -56,11 +134,69 @@ public static class OrderEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireOpenApiBearerToken()
-            .DescribeOpenApiOrderId();
+            .DescribeOpenApiOrderId()
+            .WithJsonResponseExample(StatusCodes.Status200OK, """
+                {
+                  "id": "22222222-2222-2222-2222-222222222222",
+                  "customerId": "11111111-1111-1111-1111-111111111111",
+                  "status": "Cancelled",
+                  "createdAt": "2026-09-02T12:00:00Z",
+                  "items": [
+                    {
+                      "id": "33333333-3333-3333-3333-333333333333",
+                      "orderId": "22222222-2222-2222-2222-222222222222",
+                      "productName": "Keyboard",
+                      "quantity": 2,
+                      "unitPrice": 150.00
+                    },
+                    {
+                      "id": "44444444-4444-4444-4444-444444444444",
+                      "orderId": "22222222-2222-2222-2222-222222222222",
+                      "productName": "Mouse",
+                      "quantity": 1,
+                      "unitPrice": 75.50
+                    }
+                  ],
+                  "totalAmount": 375.50
+                }
+                """)
+            .WithProblemDetailsExamples(
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status401Unauthorized,
+                StatusCodes.Status404NotFound,
+                StatusCodes.Status409Conflict,
+                StatusCodes.Status500InternalServerError);
 
         return endpoints;
     }
+
+    private const string OrderDetailsExampleJson = """
+        {
+          "id": "22222222-2222-2222-2222-222222222222",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "status": "Pending",
+          "createdAt": "2026-09-02T12:00:00Z",
+          "items": [
+            {
+              "id": "33333333-3333-3333-3333-333333333333",
+              "orderId": "22222222-2222-2222-2222-222222222222",
+              "productName": "Keyboard",
+              "quantity": 2,
+              "unitPrice": 150.00
+            },
+            {
+              "id": "44444444-4444-4444-4444-444444444444",
+              "orderId": "22222222-2222-2222-2222-222222222222",
+              "productName": "Mouse",
+              "quantity": 1,
+              "unitPrice": 75.50
+            }
+          ],
+          "totalAmount": 375.50
+        }
+        """;
 
     private static async Task<Results<Ok<OrderDetailsResponse>, ProblemHttpResult>> CancelAsync(
         string id,
@@ -254,53 +390,4 @@ public static class OrderEndpoints
         return int.TryParse(value, out parsedValue) && parsedValue > 0;
     }
 
-    private static RouteHandlerBuilder RequireOpenApiBearerToken(this RouteHandlerBuilder builder) =>
-        builder.AddOpenApiOperationTransformer((operation, context, _) =>
-        {
-            operation.Security ??= [];
-            operation.Security.Add(new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference("Bearer", context.Document, null)] = []
-            });
-
-            return Task.CompletedTask;
-        });
-
-    private static RouteHandlerBuilder DescribeOpenApiPagination(this RouteHandlerBuilder builder) =>
-        builder.AddOpenApiOperationTransformer((operation, _, _) =>
-        {
-            SetIntegerParameterBounds(operation, "page", minimum: "1");
-            SetIntegerParameterBounds(operation, "pageSize", minimum: "1", maximum: "100");
-            return Task.CompletedTask;
-        });
-
-    private static RouteHandlerBuilder DescribeOpenApiOrderId(this RouteHandlerBuilder builder) =>
-        builder.AddOpenApiOperationTransformer((operation, _, _) =>
-        {
-            var idParameter = operation.Parameters?.FirstOrDefault(parameter => parameter.Name == "id");
-            if (idParameter?.Schema is OpenApiSchema schema)
-            {
-                schema.Type = JsonSchemaType.String;
-                schema.Format = "uuid";
-            }
-
-            return Task.CompletedTask;
-        });
-
-    private static void SetIntegerParameterBounds(
-        OpenApiOperation operation,
-        string parameterName,
-        string minimum,
-        string? maximum = null)
-    {
-        var parameter = operation.Parameters?.FirstOrDefault(parameter => parameter.Name == parameterName);
-        if (parameter?.Schema is not OpenApiSchema schema)
-        {
-            return;
-        }
-
-        schema.Type = JsonSchemaType.Integer;
-        schema.Minimum = minimum;
-        schema.Maximum = maximum;
-    }
 }

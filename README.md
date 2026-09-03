@@ -1,6 +1,6 @@
 # EcommerceApi
 
-Order Management practical-test API. This repository includes the runnable foundation, FEATURE-002 authentication, FEATURE-003 order creation, FEATURE-004 order queries, and FEATURE-005 order cancellation. Confirmation endpoints, payment, catalog, stock, customer, discount, and idempotency flows are intentionally deferred to later activities or excluded by the feature scope.
+Order Management practical-test API. This repository includes the runnable foundation, FEATURE-002 authentication, FEATURE-003 order creation, FEATURE-004 order queries, FEATURE-005 order cancellation, and FEATURE-007 Swagger/OpenAPI documentation. Confirmation endpoints, payment, catalog, stock, customer, discount, and idempotency flows are intentionally deferred to later activities or excluded by the feature scope.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ The solution uses Clean Architecture with four production projects:
 - `EcommerceApi.Domain`: `Order` aggregate, `OrderItem`, status, invariants, cancellation transition, and `TotalAmount` calculation.
 - `EcommerceApi.Application`: MediatR registration, the FluentValidation pipeline behavior, fixed-credential login, create-order command/handler, cancel-order command/handler, query handlers, and application-owned order persistence ports.
 - `EcommerceApi.Infrastructure`: EF Core `OrderDbContext`, SQLite mappings, migrations, JWT generation, the EF order writer, and EF order read queries.
-- `EcommerceApi.Api`: Minimal API host, JWT bearer registration, Problem Details, OpenAPI, dependency injection, startup migration, authentication endpoint, and protected order endpoints.
+- `EcommerceApi.Api`: Minimal API host, JWT bearer registration, Problem Details, OpenAPI/Swagger UI, dependency injection, startup migration, authentication endpoint, and protected order endpoints.
 
 Minimal APIs were chosen because the final contract has five focused routes. Route groups and thin delegates keep the transport concise, while MediatR will execute use cases and the Domain will protect business invariants. Controllers would add ceremony without a current need for MVC filters or custom formatters.
 
@@ -32,7 +32,7 @@ dotnet restore
 dotnet run --project src/EcommerceApi.Api/EcommerceApi.Api.csproj
 ```
 
-The API listens on the configured ASP.NET Core URL. OpenAPI is available at `/openapi/v1.json`. The currently exposed endpoints are `POST /auth/login`, protected `POST /api/orders`, protected `GET /api/orders`, protected `GET /api/orders/{id}`, and protected `PATCH /api/orders/{id}/cancel`.
+The API listens on the configured ASP.NET Core URL. In Development, Swagger UI is available at `/swagger` and the generated OpenAPI document is available at `/openapi/v1.json`. The currently exposed endpoints are `POST /auth/login`, protected `POST /api/orders`, protected `GET /api/orders`, protected `GET /api/orders/{id}`, and protected `PATCH /api/orders/{id}/cancel`.
 
 The local default is `ConnectionStrings:Orders=Data Source=data/ecommerce.db` (and `data/ecommerce.development.db` in Development). The relative SQLite path is resolved from the process content root. The `data` directory is intentionally not committed.
 
@@ -47,6 +47,8 @@ docker compose up
 ```
 
 Compose starts only the API. It stores SQLite at `/app/data/ecommerce.db` in the named volume `ecommerceapi-data`, so container recreation preserves the database. The host port is `8080`.
+
+Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Production`, so Swagger UI and `/openapi/v1.json` are not exposed by default. To expose documentation endpoints intentionally outside Development, set `OpenApi__Enabled=true` for the API process. Do not expose documentation endpoints in Production unless that operational decision is deliberate.
 
 To intentionally reset the Docker database, stop the stack and remove the named volume:
 
@@ -63,6 +65,25 @@ The committed migration is `20260902145400_InitialOrderSchema`. It creates `Orde
 The migration source and model snapshot are versioned under `src/EcommerceApi.Infrastructure/Persistence/Migrations`.
 
 The API host validates JWT issuer, audience, lifetime, signature, and a signing key of at least 32 bytes. The signing key is supplied through configuration/environment only and is never committed or logged.
+
+## Swagger/OpenAPI
+
+The API keeps first-party document generation through `Microsoft.AspNetCore.OpenApi` and uses `Swashbuckle.AspNetCore.SwaggerUI` only to serve the interactive UI. The OpenAPI document title is `EcommerceApi`, version is `v1`, and the tags are `Authentication` and `Orders`.
+
+In Development:
+
+- Swagger UI: `/swagger`
+- OpenAPI JSON: `/openapi/v1.json`
+
+In Production, both documentation endpoints are disabled by default. Enable them only by setting `OpenApi__Enabled=true` for the running API. This changes documentation endpoint exposure only; it does not change Domain behavior, CQRS handlers, EF Core mappings, SQLite migrations, Docker persistence, or business endpoints.
+
+Swagger UI defines a reusable `Bearer` HTTP JWT security scheme. Use `POST /auth/login` with the fixed evaluator credentials, copy the returned `accessToken`, click `Authorize`, and enter:
+
+```http
+Bearer <accessToken>
+```
+
+The UI does not prefill or persist authorization values. The fixed credentials appear only as test-only request examples required by the practical test. Submitted passwords, JWTs, and signing keys must not be logged or committed.
 
 ## Authentication
 
@@ -175,7 +196,7 @@ docker compose config
 docker compose build
 ```
 
-The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation/logging pipelines, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, and order API behavior are covered in `tests/EcommerceApi.Tests`.
+The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation/logging pipelines, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, order API behavior, and OpenAPI contract metadata are covered in `tests/EcommerceApi.Tests`.
 
 ## Optional observability
 
@@ -190,5 +211,6 @@ The repository already includes API integration tests through `WebApplicationFac
 - Order creation, read, and cancellation endpoints are implemented. Confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
 - There is no persisted user, registration, password reset, refresh token, or OAuth flow.
 - Optional observability is limited to Serilog-backed MediatR request logging; no OpenTelemetry backend, dashboard, or SonarQube workflow is configured.
+- Swagger/OpenAPI exposure is Development-only by default, with `OpenApi__Enabled=true` as an explicit opt-in for other environments.
 - Startup migration is intentionally simple for this single-process practical test and is not a multi-instance migration coordinator.
 - SQLite stores `decimal` values using its provider representation; monetary total calculation remains exclusively Domain behavior.

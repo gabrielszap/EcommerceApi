@@ -1,5 +1,5 @@
 using EcommerceApi.Application.Authentication.Login;
-using FluentValidation;
+using EcommerceApi.Api.OpenApi;
 using MediatR;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +15,27 @@ public static class AuthenticationEndpoints
             .AllowAnonymous()
             .WithName("Login")
             .WithSummary("Issues a JWT for the fixed evaluator credentials.")
-            .WithDescription("Use the returned accessToken as Authorization: Bearer <accessToken> on protected API routes.")
+            .WithDescription("Anonymous evaluator-only login. The fixed credentials are a practical-test fixture, not a production identity design. Use the returned accessToken as Authorization: Bearer <accessToken> on protected API routes.")
             .Produces<LoginResponse>(StatusCodes.Status200OK)
             .ProducesValidationProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .WithJsonRequestExample("""
+                {
+                  "email": "dev@martech.com",
+                  "password": "Senha@123"
+                }
+                """)
+            .WithJsonResponseExample(StatusCodes.Status200OK, """
+                {
+                  "accessToken": "<jwt>",
+                  "expiresAtUtc": "2026-09-02T13:00:00Z"
+                }
+                """)
+            .WithProblemDetailsExamples(
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status401Unauthorized,
+                StatusCodes.Status500InternalServerError);
 
         return endpoints;
     }

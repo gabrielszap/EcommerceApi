@@ -175,11 +175,20 @@ docker compose config
 docker compose build
 ```
 
-The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation pipeline, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, and order API behavior are covered in `tests/EcommerceApi.Tests`.
+The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation/logging pipelines, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, and order API behavior are covered in `tests/EcommerceApi.Tests`.
+
+## Optional observability
+
+FEATURE-006 implements the first optional hardening item only: a MediatR logging pipeline behavior backed by Serilog in the API host. The behavior logs request type, outcome, and elapsed duration for commands and queries. It does not log request payloads, submitted passwords, JWT values, signing keys, or full command bodies.
+
+Serilog is configured during host startup and writes structured logs to the console. The Application layer still depends only on `Microsoft.Extensions.Logging.Abstractions`; Serilog remains an API-host logging provider rather than a business dependency.
+
+The repository already includes API integration tests through `WebApplicationFactory`, satisfying the second optional item without adding new infrastructure. OpenTelemetry console export and SonarQube tooling were intentionally deferred because they are lower-priority optional items and would add extra dependencies or workflow assumptions beyond the completed mandatory API.
 
 ## Limitations and assumptions
 
 - Order creation, read, and cancellation endpoints are implemented. Confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
-- There is no persisted user, registration, password reset, refresh token, OAuth flow, or optional observability.
+- There is no persisted user, registration, password reset, refresh token, or OAuth flow.
+- Optional observability is limited to Serilog-backed MediatR request logging; no OpenTelemetry backend, dashboard, or SonarQube workflow is configured.
 - Startup migration is intentionally simple for this single-process practical test and is not a multi-instance migration coordinator.
 - SQLite stores `decimal` values using its provider representation; monetary total calculation remains exclusively Domain behavior.

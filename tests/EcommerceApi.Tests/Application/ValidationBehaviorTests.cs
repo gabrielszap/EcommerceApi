@@ -53,6 +53,22 @@ public sealed class ValidationBehaviorTests
             descriptor.ImplementationType == typeof(ValidationBehavior<,>));
     }
 
+    [Fact]
+    public void AddApplication_RegistersLoggingBeforeValidationPipelineBehavior()
+    {
+        var services = new ServiceCollection();
+
+        services.AddApplication();
+
+        var pipelineBehaviors = services
+            .Where(descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>))
+            .Select(descriptor => descriptor.ImplementationType)
+            .ToArray();
+
+        Assert.Equal(typeof(LoggingBehavior<,>), pipelineBehaviors[0]);
+        Assert.Equal(typeof(ValidationBehavior<,>), pipelineBehaviors[1]);
+    }
+
     private sealed record TestRequest(string Value) : IRequest<string>;
 
     private sealed class TestRequestValidator : AbstractValidator<TestRequest>

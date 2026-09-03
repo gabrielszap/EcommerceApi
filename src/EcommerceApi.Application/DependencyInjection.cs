@@ -13,6 +13,7 @@ public static class ApplicationDependencyInjection
         services.AddMediatR(configuration =>
             configuration.RegisterServicesFromAssemblyContaining<AssemblyMarker>());
         services.AddValidatorsFromAssemblyContaining<AssemblyMarker>();
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddSingleton<ITestCredentialsValidator, InMemoryTestCredentialsValidator>();
 

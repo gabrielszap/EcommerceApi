@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EcommerceApi.Application\EcommerceApi.Application.csproj" />
+    <ProjectReference Include="..\EcommerceApi.Infrastructure\EcommerceApi.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

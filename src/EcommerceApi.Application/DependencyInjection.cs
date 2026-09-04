@@ -1,3 +1,4 @@
+using System.Reflection;
 using EcommerceApi.Application.Common.Behaviors;
 using EcommerceApi.Application.Authentication;
 using FluentValidation;
@@ -10,9 +11,11 @@ public static class ApplicationDependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        Assembly applicationAssembly = typeof(ApplicationDependencyInjection).Assembly;
+
         services.AddMediatR(configuration =>
-            configuration.RegisterServicesFromAssemblyContaining<AssemblyMarker>());
-        services.AddValidatorsFromAssemblyContaining<AssemblyMarker>();
+            configuration.RegisterServicesFromAssembly(applicationAssembly));
+        services.AddValidatorsFromAssembly(applicationAssembly);
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddSingleton<ITestCredentialsValidator, InMemoryTestCredentialsValidator>();

@@ -4,14 +4,18 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_HTTPS_PORTS: 8081
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/ecommerceapi.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ecommerceapi-dev-cert
       ConnectionStrings__Orders: Data Source=/app/data/ecommerce.db
       Jwt__Issuer: EcommerceApi
       Jwt__Audience: EcommerceApi
       Jwt__SigningKey: WubB8iWoRj1rSfka2m5qCaaCcw9DwSBb4Q0mY3bAlo9
     ports:
       - "8080:8080"
+      - "8081:8081"
     volumes:
       - ecommerceapi-data:/app/data
 

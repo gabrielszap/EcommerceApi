@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.203 AS build
 WORKDIR /src
 
-COPY Directory.Build.props Directory.Packages.props global.json EcommerceApi.sln ./
+COPY Directory.Build.props Directory.Packages.props EcommerceApi.sln ./
 COPY src ./src
 COPY tests ./tests
 RUN dotnet restore EcommerceApi.sln

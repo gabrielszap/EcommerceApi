@@ -12,7 +12,7 @@ services:
       ConnectionStrings__Orders: Data Source=/app/data/ecommerce.db
       Jwt__Issuer: EcommerceApi
       Jwt__Audience: EcommerceApi
-      Jwt__SigningKey: WubB8iWoRj1rSfka2m5qCaaCcw9DwSBb4Q0mY3bAlo9
+      Jwt__SigningKey: local-development-key-with-at-least-32-bytes
     ports:
       - "8080:8080"
       - "8081:8081"

@@ -1,30 +1,30 @@
 # EcommerceApi
 
-Order Management practical-test API. This repository includes the runnable foundation, FEATURE-002 authentication, FEATURE-003 order creation, FEATURE-004 order queries, FEATURE-005 order cancellation, and FEATURE-007 Swagger/OpenAPI documentation. Confirmation endpoints, payment, catalog, stock, customer, discount, and idempotency flows are intentionally deferred to later activities or excluded by the feature scope.
+API do teste pratico de gerenciamento de pedidos. Este repositorio inclui a base executavel, a autenticacao, a criacao de pedidos, as consultas de pedidos, o cancelamento de pedidos e a documentacao Swagger/OpenAPI. 
 
-## Prerequisites
+## Pre-requisitos
 
-- .NET SDK 10.0.203 (or a compatible .NET 10 SDK)
-- Docker Engine with Docker Compose v2 (for container execution)
+- .NET SDK 10.0.203 ou um SDK .NET 10 compativel
+- Docker Engine com Docker Compose v2 para execucao em container
 
-Set `Jwt__SigningKey` to a development-only value of at least 32 UTF-8 bytes. It is required at startup, is never committed, and must be supplied through environment-specific configuration or a secret store in real deployments.
+Configure `Jwt__SigningKey` com um valor apenas de desenvolvimento com pelo menos 32 bytes UTF-8. Essa chave e obrigatoria na inicializacao, nunca deve ser usada como segredo real e deve ser fornecida por configuracao especifica do ambiente ou por um secret store em implantacoes reais.
 
-## Architecture
+## Arquitetura
 
-The solution uses Clean Architecture with four production projects:
+A solucao usa Clean Architecture com quatro projetos de producao:
 
-- `EcommerceApi.Domain`: `Order` aggregate, `OrderItem`, status, invariants, cancellation transition, and `TotalAmount` calculation.
-- `EcommerceApi.Application`: MediatR registration, the FluentValidation pipeline behavior, fixed-credential login, create-order command/handler, cancel-order command/handler, query handlers, and application-owned order persistence ports.
-- `EcommerceApi.Infrastructure`: EF Core `OrderDbContext`, SQLite mappings, migrations, JWT generation, the EF order writer, and EF order read queries.
-- `EcommerceApi.Api`: Minimal API host, JWT bearer registration, Problem Details, OpenAPI/Swagger UI, dependency injection, startup migration, authentication endpoint, and protected order endpoints.
+- `EcommerceApi.Domain`: agregado `Order`, `OrderItem`, status, invariantes, transicao de cancelamento e calculo de `TotalAmount`.
+- `EcommerceApi.Application`: registro do MediatR, pipeline behavior de FluentValidation, login com credenciais fixas, comando/handler de criacao de pedido, comando/handler de cancelamento, query handlers e portas de persistencia de pedidos pertencentes a camada de aplicacao.
+- `EcommerceApi.Infrastructure`: `OrderDbContext` do EF Core, mapeamentos SQLite, migrations, geracao de JWT, writer EF de pedidos e queries EF de leitura de pedidos.
+- `EcommerceApi.Api`: host Minimal API, registro JWT bearer, Problem Details, OpenAPI/Swagger UI, injecao de dependencia, migracao na inicializacao, endpoint de autenticacao e endpoints protegidos de pedidos.
 
-Minimal APIs were chosen because the final contract has five focused routes. Route groups and thin delegates keep the transport concise, while MediatR will execute use cases and the Domain will protect business invariants. Controllers would add ceremony without a current need for MVC filters or custom formatters.
+Minimal APIs foram escolhidas porque o contrato final tem cinco rotas focadas. Route groups e delegates finos mantem o transporte conciso, enquanto o MediatR executa os casos de uso e o Domain protege as invariantes de negocio. Controllers adicionariam cerimonia sem uma necessidade atual de filtros ou tratamentos da requisição customizados.
 
-The dependency direction is `Domain <- Application <- Api` and `Domain <- Application <- Infrastructure <- Api`. Domain and Application do not reference ASP.NET Core, EF Core, SQLite, or JWT implementation packages. There is no generic repository: order use cases expose focused `IOrderWriter` and `IOrderReader` ports.
+A direcao de dependencias e `Domain <- Application <- Api` e `Domain <- Application <- Infrastructure <- Api`. Domain e Application nao referenciam ASP.NET Core, EF Core, SQLite ou pacotes de implementacao JWT. Nao existe repositorio generico: os casos de uso de pedidos chamam `IOrderWriter` e `IOrderReader`.
 
-## Local execution
+## Execucao local
 
-From the repository root:
+A partir da raiz do repositorio:
 
 ```powershell
 $env:Jwt__SigningKey = 'local-development-key-with-at-least-32-bytes'
@@ -32,13 +32,13 @@ dotnet restore
 dotnet run --project src/EcommerceApi.Api/EcommerceApi.Api.csproj
 ```
 
-The API listens on the configured ASP.NET Core URL. In Development, Swagger UI is available at `/swagger` and the generated OpenAPI document is available at `/openapi/v1.json`. The currently exposed endpoints are `POST /auth/login`, protected `POST /api/orders`, protected `GET /api/orders`, protected `GET /api/orders/{id}`, and protected `PATCH /api/orders/{id}/cancel`.
+A API escuta na URL configurada pelo ASP.NET Core. Em Development, o Swagger UI fica disponivel em `/swagger` e o documento OpenAPI gerado fica disponivel em `/openapi/v1.json`. Os endpoints expostos atualmente sao `POST /auth/login`, `POST /api/orders` protegido, `GET /api/orders` protegido, `GET /api/orders/{id}` protegido e `PATCH /api/orders/{id}/cancel` protegido.
 
-The local default is `ConnectionStrings:Orders=Data Source=data/ecommerce.db` (and `data/ecommerce.development.db` in Development). The relative SQLite path is resolved from the process content root. The `data` directory is intentionally not committed.
+O padrao local e `ConnectionStrings:Orders=Data Source=data/ecommerce.db` e, em Development, `data/ecommerce.development.db`. O caminho relativo do SQLite e resolvido a partir do content root do processo. O diretorio `data` intencionalmente nao e commitado.
 
 ## Docker Compose
 
-Set a temporary development-only key and start the API:
+Configure uma chave temporaria apenas de desenvolvimento e inicie a API:
 
 ```powershell
 $env:JWT_SIGNING_KEY = 'local-development-key-with-at-least-32-bytes'
@@ -46,71 +46,69 @@ docker compose build
 docker compose up
 ```
 
-Compose starts only the API. It stores SQLite at `/app/data/ecommerce.db` in the named volume `ecommerceapi-data`, so container recreation preserves the database. The host ports are `8080` for HTTP and `8081` for HTTPS.
+O Compose inicia apenas a API. Ele armazena o SQLite em `/app/data/ecommerce.db` no volume nomeado `ecommerceapi-data`, entao recriar o container preserva o banco de dados. As portas do host sao `8080` para HTTP e `8081` para HTTPS.
 
-Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Development` for evaluator convenience. It exposes HTTP on `http://localhost:8080` and HTTPS on `https://localhost:8081`. A development HTTPS certificate is generated during the Docker image build and used only by the container. Swagger UI is available at `/swagger`, and accessing the base URL redirects to `/swagger`.
+O Docker Compose roda com `ASPNETCORE_ENVIRONMENT=Development` para facilitar a avaliacao. Ele expoe HTTP em `http://localhost:8080` e HTTPS em `https://localhost:8081`. Um certificado HTTPS de desenvolvimento e gerado durante o build da imagem Docker e usado apenas pelo container. O Swagger UI fica disponivel em `/swagger`, e acessar a URL base redireciona para `/swagger`.
 
-If the browser warns about the HTTPS certificate, use the HTTP URL or trust a local development certificate through your normal workstation process. Do not reuse the generated container certificate for production.
+Se o navegador alertar sobre o certificado HTTPS, use a URL HTTP ou confie um certificado de desenvolvimento local pelo processo normal da sua estacao. Nao reutilize o certificado gerado no container em producao.
 
-To intentionally reset the Docker database, stop the stack and remove the named volume:
+Para resetar intencionalmente o banco Docker, pare a stack e remova o volume nomeado:
 
-```powershell
+```
 docker compose down -v
 ```
 
-This permanently deletes the named-volume database. For a local reset, stop the API and remove the selected `data/ecommerce*.db` file intentionally.
+Isso apaga permanentemente o banco de dados do volume nomeado. Para um reset local, pare a API e remova intencionalmente o arquivo `data/ecommerce*.db` selecionado.
 
-## Migrations and startup
+## Migrations e inicializacao
 
-The committed migration is `20260902145400_InitialOrderSchema`. It creates `Orders` and `OrderItems`, their required relationship/index/check constraints, and no `TotalAmount` column. FEATURE-003 did not require a new migration because this schema already persists the required order and item fields. `Database.MigrateAsync()` runs before `app.Run()`; a migration failure is logged at Critical and rethrown so the process does not serve requests. Repeated startup sees the existing migration history and leaves the schema/data intact. `EnsureCreated` is not used.
+A migration commitada e `20260902145400_InitialOrderSchema`. Ela cria `Orders` e `OrderItems`, o relacionamento obrigatorio, indices, check constraints e nenhum campo `TotalAmount`. `Database.MigrateAsync()` roda antes de `app.Run()`; uma falha de migration e registrada como Critical e relancada para que o processo nao passe a servir requisicoes. Inicializacoes repetidas encontram o historico de migrations existente e mantem schema/dados intactos. `EnsureCreated` nao e usado.
 
-The migration source and model snapshot are versioned under `src/EcommerceApi.Infrastructure/Persistence/Migrations`.
+A fonte da migration e o model snapshot estao versionados em `src/EcommerceApi.Infrastructure/Persistence/Migrations`.
 
-The API host validates JWT issuer, audience, lifetime, signature, and a signing key of at least 32 bytes. The signing key is supplied through configuration/environment only and is never committed or logged.
+O host da API valida issuer, audience, lifetime, assinatura e uma chave de assinatura JWT com pelo menos 32 bytes. A chave de assinatura e fornecida apenas por configuracao/ambiente e nao deve ser usada como segredo real nem registrada em logs.
 
 ## Swagger/OpenAPI
 
-The API keeps first-party document generation through `Microsoft.AspNetCore.OpenApi` and uses `Swashbuckle.AspNetCore.SwaggerUI` only to serve the interactive UI. The OpenAPI document title is `EcommerceApi`, version is `v1`, and the tags are `Authentication` and `Orders`.
+A API mantem a geracao de documento por componentes first-party com `Microsoft.AspNetCore.OpenApi` e usa `Swashbuckle.AspNetCore.SwaggerUI` apenas para servir a UI interativa. O titulo do documento OpenAPI e `EcommerceApi`, a versao e `v1` e as tags sao `Authentication` e `Orders`.
 
-In Development:
+Em Development:
 
 - Swagger UI: `/swagger`
 - OpenAPI JSON: `/openapi/v1.json`
-- Base URL redirect: `/` redirects to `/swagger`
+- Redirecionamento da URL base: `/` redireciona para `/swagger`
 
-In Production, both documentation endpoints are disabled by default. Enable them only by setting `OpenApi__Enabled=true` for the running API. This changes documentation endpoint exposure only; it does not change Domain behavior, CQRS handlers, EF Core mappings, SQLite migrations, Docker persistence, or business endpoints.
-
-Swagger UI defines a reusable `Bearer` HTTP JWT security scheme. Use `POST /auth/login` with the fixed evaluator credentials, copy the returned `accessToken`, click `Authorize`, and enter:
+O Swagger UI define um security scheme HTTP JWT reutilizavel chamado `Bearer`. Use `POST /auth/login` com as credenciais fixas do avaliador, copie o `accessToken` retornado, clique em `Authorize` e informe:
 
 ```http
 Bearer <accessToken>
 ```
 
-The UI does not prefill or persist authorization values. The fixed credentials appear only as test-only request examples required by the practical test. Submitted passwords, JWTs, and signing keys must not be logged or committed.
+A UI nao preenche nem persiste valores de autorizacao automaticamente. As credenciais fixas aparecem apenas como exemplos de teste exigidos pelo teste pratico. Senhas enviadas, JWTs e signing keys nao devem ser registrados em log nem commitados.
 
-## Authentication
+## Autenticacao
 
-`POST /auth/login` is anonymous and forwards its request to the Application layer through MediatR. FluentValidation runs in the MediatR pipeline, so the endpoint neither compares credentials nor creates a token.
+`POST /auth/login` e anonimo e encaminha a requisicao para a camada Application por meio do MediatR. O FluentValidation roda no pipeline do MediatR, entao o endpoint nao compara credenciais nem cria token.
 
-| Outcome | Status | Body |
+| Resultado | Status | Corpo |
 | --- | --- | --- |
-| Valid fixed credentials | `200 OK` | `{ "accessToken": "...", "expiresAtUtc": "..." }` |
-| Missing or invalid email/password shape | `400 Bad Request` | Validation Problem Details with field errors |
-| Incorrect email or password | `401 Unauthorized` | Problem Details, without a token |
+| Credenciais fixas validas | `200 OK` | `{ "accessToken": "...", "expiresAtUtc": "..." }` |
+| Email/senha ausentes ou em formato invalido | `400 Bad Request` | Validation Problem Details com erros por campo |
+| Email ou senha incorretos | `401 Unauthorized` | Problem Details, sem token |
 
-For the evaluator only, the fixed in-memory credentials are `dev@martech.com` / `Senha@123`. They are deliberately not persisted in SQLite or modeled as a user account. This is a test fixture and is not a production identity-management design.
+Apenas para o avaliador, as credenciais fixas em memoria sao `dev@martech.com` / `Senha@123`. Elas deliberadamente nao sao persistidas no SQLite nem modeladas como uma conta de usuario. Isso e uma feature de teste e nao um desenho de gerenciamento de identidade para producao.
 
-Use the received token with protected routes:
+Use o token recebido nas rotas protegidas:
 
 ```http
 Authorization: Bearer <accessToken>
 ```
 
-The OpenAPI document describes the login request/response, validation and authentication errors, and the `Bearer` JWT security scheme.
+O documento OpenAPI descreve request/response de login, erros de validacao e autenticacao, e o security scheme JWT `Bearer`.
 
-## Create order
+## Criacao de pedido
 
-`POST /api/orders` requires `Authorization: Bearer <accessToken>`. The endpoint forwards the request to MediatR, FluentValidation validates the request shape in the pipeline, the Domain constructs the `Order` aggregate and items, and Infrastructure persists the aggregate through EF Core/SQLite in one `SaveChangesAsync()` call.
+`POST /api/orders` exige `Authorization: Bearer <accessToken>`. O endpoint encaminha a requisicao para o MediatR, o FluentValidation valida o formato no pipeline, o Domain constroi o agregado `Order` e seus itens, e a Infrastructure persiste o agregado com EF Core/SQLite em uma unica chamada `SaveChangesAsync()`.
 
 Request:
 
@@ -127,15 +125,15 @@ Request:
 }
 ```
 
-Successful response: `201 Created`, `Location: /api/orders/{id}`, and a body containing `id`, `customerId`, `status`, `createdAt`, `items`, and Domain-calculated `totalAmount`.
+Resposta de sucesso: `201 Created`, `Location: /api/orders/{id}` e corpo contendo `id`, `customerId`, `status`, `createdAt`, `items` e `totalAmount` calculado pelo Domain.
 
-Validation and domain-rule failures return `400 Bad Request` Problem Details. Missing, malformed, invalid, or expired bearer tokens return `401 Unauthorized`. Product catalog lookup, stock validation, price lookup, payment, confirmation, customer persistence, discounts, and idempotency keys are not implemented.
+Falhas de validacao e de regra de dominio retornam `400 Bad Request` Problem Details. Tokens bearer ausentes, malformados, invalidos ou expirados retornam `401 Unauthorized`. Lookup de catalogo de produto, validacao de estoque, lookup de preco, pagamento, confirmacao, persistencia de cliente, descontos e chaves de idempotencia nao estao implementados.
 
-## Query orders
+## Consulta de pedidos
 
-Both read endpoints require `Authorization: Bearer <accessToken>`. They are implemented as MediatR queries and do not expose EF Core entities or queryables outside Infrastructure.
+Os dois endpoints de leitura exigem `Authorization: Bearer <accessToken>`. Eles sao implementados como queries MediatR e nao expoem entidades EF Core nem queryables fora da Infrastructure.
 
-`GET /api/orders?page=1&pageSize=10` returns `200 OK` with this pagination envelope:
+`GET /api/orders?page=1&pageSize=10` retorna `200 OK` com este envelope de paginacao:
 
 ```json
 {
@@ -158,38 +156,38 @@ Both read endpoints require `Authorization: Bearer <accessToken>`. They are impl
 }
 ```
 
-`page` defaults to `1`, `pageSize` defaults to `10`, and both must be positive integers. `pageSize` is capped at `100`. Invalid pagination returns `400 Bad Request` Validation Problem Details. Results are ordered by newest `createdAt` first, with `id` as the stable tie-breaker, and pagination is applied by EF Core at the database query level.
+`page` tem padrao `1`, `pageSize` tem padrao `10` e ambos devem ser inteiros positivos. `pageSize` e limitado a `100`. Paginacao invalida retorna `400 Bad Request` Validation Problem Details. Os resultados sao ordenados por `createdAt` mais recente primeiro, com `id` como criterio estavel de desempate, e a paginacao e aplicada pelo EF Core no nivel da consulta ao banco.
 
-`GET /api/orders/{id}` returns `200 OK` with `id`, `customerId`, `status`, `createdAt`, `items`, and Domain-calculated `totalAmount`. A malformed GUID or empty GUID returns `400 Bad Request` Problem Details. A well-formed but unknown GUID returns `404 Not Found` Problem Details.
+`GET /api/orders/{id}` retorna `200 OK` com `id`, `customerId`, `status`, `createdAt`, `items` e `totalAmount` calculado pelo Domain. Um GUID malformado ou vazio retorna `400 Bad Request` Problem Details. Um GUID bem formado mas desconhecido retorna `404 Not Found` Problem Details.
 
-## Cancel order
+## Cancelamento de pedido
 
-`PATCH /api/orders/{id}/cancel` requires `Authorization: Bearer <accessToken>` and has no request body. The endpoint parses the route identifier and sends a MediatR command. The handler loads the tracked aggregate through the Application-owned write port, calls `Order.Cancel()`, and persists the changed status with EF Core in the same context. `Status` is configured as an EF Core concurrency token, so a stale cancellation save is translated to the same `409 Conflict` invalid-state outcome instead of reporting a second success.
+`PATCH /api/orders/{id}/cancel` exige `Authorization: Bearer <accessToken>` e nao tem corpo de request. O endpoint interpreta o identificador da rota e envia um comando MediatR. O handler carrega o agregado rastreado pela porta de escrita pertencente a Application, chama `Order.Cancel()` e persiste o status alterado com EF Core no mesmo contexto. `Status` e configurado como concurrency token no EF Core, entao um save de cancelamento obsoleto e traduzido para o mesmo resultado `409 Conflict` de estado invalido em vez de reportar um segundo sucesso.
 
-Successful response: `200 OK` with the order representation, including `status: "Cancelled"` and Domain-calculated `totalAmount`.
+Resposta de sucesso: `200 OK` com a representacao do pedido, incluindo `status: "Cancelled"` e `totalAmount` calculado pelo Domain.
 
-| Outcome | Status | Body |
+| Resultado | Status | Corpo |
 | --- | --- | --- |
-| Existing pending order | `200 OK` | Cancelled order representation |
-| Malformed GUID | `400 Bad Request` | Problem Details |
-| Unknown valid GUID | `404 Not Found` | Problem Details |
-| Already cancelled or confirmed order | `409 Conflict` | Problem Details |
-| Missing, malformed, invalid, or expired bearer token | `401 Unauthorized` | Problem Details |
+| Pedido pendente existente | `200 OK` | Representacao do pedido cancelado |
+| GUID malformado | `400 Bad Request` | Problem Details |
+| GUID valido desconhecido | `404 Not Found` | Problem Details |
+| Pedido ja cancelado ou confirmado | `409 Conflict` | Problem Details |
+| Token bearer ausente, malformado, invalido ou expirado | `401 Unauthorized` | Problem Details |
 
-No endpoint currently confirms orders. The Domain exposes a confirmation transition only so the aggregate can represent and protect the `Confirmed` state required by the order lifecycle; cancellation still only permits `Pending -> Cancelled`.
+Nenhum endpoint confirma pedidos atualmente. O Domain expoe uma transicao de confirmacao apenas para que o agregado consiga representar e proteger o estado `Confirmed` exigido pelo ciclo de vida do pedido; o cancelamento ainda permite somente `Pending -> Cancelled`.
 
-### JWT configuration
+### Configuracao JWT
 
-| Key | Purpose |
+| Chave | Finalidade |
 | --- | --- |
-| `Jwt__Issuer` | Issuer that this API creates and accepts. |
-| `Jwt__Audience` | Audience that this API creates and accepts. |
-| `Jwt__LifetimeMinutes` | Positive lifetime, in minutes, for access tokens. |
-| `Jwt__SigningKey` | Secret symmetric key with at least 32 UTF-8 bytes; supply outside source control. |
+| `Jwt__Issuer` | Issuer que esta API cria e aceita. |
+| `Jwt__Audience` | Audience que esta API cria e aceita. |
+| `Jwt__LifetimeMinutes` | Lifetime positivo, em minutos, dos access tokens. |
+| `Jwt__SigningKey` | Chave simetrica secreta com pelo menos 32 bytes UTF-8; forneca fora do controle de versao em ambientes reais. |
 
-`appsettings.json` contains safe issuer, audience, and lifetime defaults. It intentionally has no signing key. Environment variables use double underscores for nested configuration.
+`appsettings.json` contem defaults seguros para issuer, audience e lifetime, alem de uma signing key local apenas para desenvolvimento coerente com os exemplos deste README. Substitua `Jwt__SigningKey` por configuracao de ambiente ou secret store fora do controle de versao em qualquer ambiente real. Variaveis de ambiente usam dois underscores para configuracao aninhada.
 
-## Tests and quality checks
+## Testes e quality checks
 
 ```powershell
 dotnet restore
@@ -199,21 +197,21 @@ docker compose config
 docker compose build
 ```
 
-The tests use xUnit and a real temporary SQLite database for migration and persistence behavior; they do not use EF Core InMemory. Domain, MediatR validation/logging pipelines, login handler, create-order handler, cancel-order handler, query handlers, JWT signing/validation, migration, startup migration, EF order persistence/read/cancellation behavior, order API behavior, and OpenAPI contract metadata are covered in `tests/EcommerceApi.Tests`.
+Os testes usam xUnit e um banco SQLite temporario real para comportamento de migration e persistencia; eles nao usam EF Core InMemory. Domain, pipelines MediatR de validacao/logging, handler de login, handler de criacao de pedido, handler de cancelamento, query handlers, assinatura/validacao JWT, migration, migration de startup, persistencia/leitura/cancelamento de pedidos via EF, comportamento da API de pedidos e metadados do contrato OpenAPI estao cobertos em `tests/EcommerceApi.Tests`.
 
-## Optional observability
+## Observabilidade opcional
 
-FEATURE-006 implements the first optional hardening item only: a MediatR logging pipeline behavior backed by Serilog in the API host. The behavior logs request type, outcome, and elapsed duration for commands and queries. It does not log request payloads, submitted passwords, JWT values, signing keys, or full command bodies.
+Um pipeline behavior de logging MediatR com Serilog no host da API. O behavior registra tipo da request, resultado e duracao para comandos e queries. Ele nao registra payloads de request, senhas enviadas, valores JWT, signing keys ou corpos completos de comandos.
 
-Serilog is configured during host startup and writes structured logs to the console. The Application layer still depends only on `Microsoft.Extensions.Logging.Abstractions`; Serilog remains an API-host logging provider rather than a business dependency.
+O Serilog e configurado durante a inicializacao do host e escreve logs estruturados no console. A camada Application ainda depende apenas de `Microsoft.Extensions.Logging.Abstractions`; Serilog permanece como provider de logging do host da API, nao como dependencia de negocio.
 
-The repository already includes API integration tests through `WebApplicationFactory`, satisfying the second optional item without adding new infrastructure. OpenTelemetry console export and SonarQube tooling were intentionally deferred because they are lower-priority optional items and would add extra dependencies or workflow assumptions beyond the completed mandatory API.
+O repositorio ja inclui testes de integracao de API com `WebApplicationFactory`.
 
-## Limitations and assumptions
+## Limitacoes e premissas
 
-- Order creation, read, and cancellation endpoints are implemented. Confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
-- There is no persisted user, registration, password reset, refresh token, or OAuth flow.
-- Optional observability is limited to Serilog-backed MediatR request logging; no OpenTelemetry backend, dashboard, or SonarQube workflow is configured.
-- Swagger/OpenAPI exposure is Development-only by default, with `OpenApi__Enabled=true` as an explicit opt-in for other environments. Docker Compose intentionally runs the API in Development so the evaluator can open Swagger immediately.
-- Startup migration is intentionally simple for this single-process practical test and is not a multi-instance migration coordinator.
-- SQLite stores `decimal` values using its provider representation; monetary total calculation remains exclusively Domain behavior.
+- Endpoints de criacao, leitura e cancelamento de pedidos estao implementados. Comportamentos de confirmacao, pagamento, catalogo, estoque, cliente, desconto e idempotencia estao fora do escopo atual.
+- Nao existe usuario persistido, registro, reset de senha, refresh token ou fluxo OAuth.
+- A observabilidade opcional se limita ao logging de requests MediatR com Serilog.
+- A exposicao Swagger/OpenAPI e apenas em Development por padrao, com `OpenApi__Enabled=true` como opt-in explicito para outros ambientes. O Docker Compose roda a API intencionalmente em Development para que o avaliador consiga abrir o Swagger imediatamente.
+- A migration de startup e intencionalmente simples para este teste pratico de processo unico e nao e um coordenador de migrations multi-instancia.
+- O SQLite armazena valores `decimal` usando a representacao do provider; o calculo monetario de total permanece exclusivamente no comportamento de Domain.

@@ -71,6 +71,8 @@ public static class EcommerceOpenApiExtensions
             ];
             options.ConfigObject.PersistAuthorization = false;
         });
+        app.MapGet("/", () => Results.Redirect("/swagger"))
+            .ExcludeFromDescription();
 
         return app;
     }

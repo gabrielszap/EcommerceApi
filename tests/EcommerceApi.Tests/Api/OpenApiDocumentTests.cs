@@ -101,6 +101,21 @@ public sealed class OpenApiDocumentTests
     }
 
     [Fact]
+    public async Task Root_InDevelopment_RedirectsToSwaggerUi()
+    {
+        using var factory = new OpenApiFactory("Development");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/swagger", response.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
     public async Task DocumentationEndpoints_InProductionDefault_AreNotExposed()
     {
         using var factory = new OpenApiFactory("Production");
@@ -111,9 +126,11 @@ public sealed class OpenApiDocumentTests
 
         var openApiResponse = await client.GetAsync("/openapi/v1.json");
         var swaggerResponse = await client.GetAsync("/swagger");
+        var rootResponse = await client.GetAsync("/");
 
         Assert.Equal(HttpStatusCode.NotFound, openApiResponse.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, swaggerResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, rootResponse.StatusCode);
     }
 
     [Fact]

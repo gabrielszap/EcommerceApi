@@ -46,9 +46,11 @@ docker compose build
 docker compose up
 ```
 
-Compose starts only the API. It stores SQLite at `/app/data/ecommerce.db` in the named volume `ecommerceapi-data`, so container recreation preserves the database. The host port is `8080`.
+Compose starts only the API. It stores SQLite at `/app/data/ecommerce.db` in the named volume `ecommerceapi-data`, so container recreation preserves the database. The host ports are `8080` for HTTP and `8081` for HTTPS.
 
-Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Production`, so Swagger UI and `/openapi/v1.json` are not exposed by default. To expose documentation endpoints intentionally outside Development, set `OpenApi__Enabled=true` for the API process. Do not expose documentation endpoints in Production unless that operational decision is deliberate.
+Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Development` for evaluator convenience. It exposes HTTP on `http://localhost:8080` and HTTPS on `https://localhost:8081`. A development HTTPS certificate is generated during the Docker image build and used only by the container. Swagger UI is available at `/swagger`, and accessing the base URL redirects to `/swagger`.
+
+If the browser warns about the HTTPS certificate, use the HTTP URL or trust a local development certificate through your normal workstation process. Do not reuse the generated container certificate for production.
 
 To intentionally reset the Docker database, stop the stack and remove the named volume:
 
@@ -74,6 +76,7 @@ In Development:
 
 - Swagger UI: `/swagger`
 - OpenAPI JSON: `/openapi/v1.json`
+- Base URL redirect: `/` redirects to `/swagger`
 
 In Production, both documentation endpoints are disabled by default. Enable them only by setting `OpenApi__Enabled=true` for the running API. This changes documentation endpoint exposure only; it does not change Domain behavior, CQRS handlers, EF Core mappings, SQLite migrations, Docker persistence, or business endpoints.
 
@@ -211,6 +214,6 @@ The repository already includes API integration tests through `WebApplicationFac
 - Order creation, read, and cancellation endpoints are implemented. Confirm/payment/catalog/stock/customer/discount/idempotency behavior is outside the current scope.
 - There is no persisted user, registration, password reset, refresh token, or OAuth flow.
 - Optional observability is limited to Serilog-backed MediatR request logging; no OpenTelemetry backend, dashboard, or SonarQube workflow is configured.
-- Swagger/OpenAPI exposure is Development-only by default, with `OpenApi__Enabled=true` as an explicit opt-in for other environments.
+- Swagger/OpenAPI exposure is Development-only by default, with `OpenApi__Enabled=true` as an explicit opt-in for other environments. Docker Compose intentionally runs the API in Development so the evaluator can open Swagger immediately.
 - Startup migration is intentionally simple for this single-process practical test and is not a multi-instance migration coordinator.
 - SQLite stores `decimal` values using its provider representation; monetary total calculation remains exclusively Domain behavior.
